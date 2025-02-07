@@ -7,7 +7,7 @@ Name: Aaron RoyAlappat
 Student ID: 158515221 
 Date: 02-06-2025
 Cyclic Web App URL: 
-GitHub Repository URL: 
+GitHub Repository URL: https://github.com/aaronroy888/web322-app
 
 ********************************************************************************/ 
 
