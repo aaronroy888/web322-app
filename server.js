@@ -42,8 +42,8 @@ storeService.initialize().then(() => {
     });
 
     app.get("/", (req, res) => {
-        res.redirect("/about");
-    });
+        res.sendFile(path.join(__dirname, "views", "about.html"));
+    });    
 
     app.use((req, res) => {
         res.status(404).send("404! Page Not Found");
