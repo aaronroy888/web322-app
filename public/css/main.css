@@ -2,10 +2,21 @@ body {
     background-color: #f8f9fa;
     color: #333;
     font-family: Arial, sans-serif;
+    background-image: url("../img/myArt.jpg");
+    background-size: cover;  
+    background-position: center; 
+    background-repeat: no-repeat; 
+}
+.container {
+    background: rgba(0, 0, 0, 0.6); 
+    color: white; 
+    padding: 50px; 
+    width: 75%;
+    margin: auto;
 }
 
 h2 {
-    color: #007bff;
+    color: greenyellow;
 }
 
 p {
