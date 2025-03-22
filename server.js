@@ -29,6 +29,13 @@ cloudinary.config({
     secure: true
 });
 
+const exphbs = require('express-handlebars');
+
+app.engine('.hbs', exphbs.engine({ extname: '.hbs' }));
+app.set('view engine', '.hbs');
+
+const Handlebars = require("./helpers");
+
 const upload = multer();
 
 app.post("/items/add", upload.single("featureImage"), (req, res) => {
@@ -74,13 +81,33 @@ app.post("/items/add", upload.single("featureImage"), (req, res) => {
     }
 });
 
+app.engine('.hbs', exphbs.engine({
+    extname: '.hbs',
+    helpers: {
+        navLink: function(url, options) {
+            return '<li' + 
+                ((url == app.locals.activeRoute) ? ' class="active"' : '') + 
+                '><a href="' + url + '">' + options.fn(this) + '</a></li>';
+        },
+        equal: function(lvalue, rvalue, options) {
+            if (arguments.length < 3)
+                throw new Error("Handlebars Helper equal needs 2 parameters");
+            if (lvalue != rvalue) {
+                return options.inverse(this);
+            } else {
+                return options.fn(this);
+            }
+        }
+    }
+}));
+
 const PORT = process.env.PORT || 8080;
 
 app.use(express.static("public"));
 
 storeService.initialize().then(() => {
 
-    console.log("Data initialized successfully. Version 3");
+    console.log("Data initialized successfully. Version 4");
 
     app.get("/items", (req, res) => {
         if (req.query.category) {
@@ -105,16 +132,49 @@ storeService.initialize().then(() => {
             .catch((err) => res.status(404).send(err));
     });
 
-    app.get("/shop", (req, res) => {
-        storeService.getPublishedItems()
-        .then(data => res.json(data))
-        .catch(err => res.status(404).send(err));
-    });
+    app.get("/shop", async (req, res) => {
+        let viewData = {};
+      
+        try {
+          let items = [];
+      
+          if (req.query.category) {
+            items = await itemData.getPublishedItemsByCategory(req.query.category);
+          } else {
+            items = await itemData.getPublishedItems();
+          }
+      
+          items.sort((a, b) => new Date(b.itemDate) - new Date(a.itemDate));
+      
+          let item = items[0];
+      
+          viewData.items = items;
+          viewData.item = item;
+        } catch (err) {
+          viewData.message = "no results";
+        }
+      
+        try {
+          let categories = await itemData.getCategories();
+      
+          viewData.categories = categories;
+        } catch (err) {
+          viewData.categoriesMessage = "no results";
+        }
+      
+        res.render("shop", { data: viewData });
+      });
 
     app.get("/categories", (req, res) => {
         storeService.getCategories()
-        .then(data => res.json(data))
-        .catch(err => res.status(404).send(err));
+        .then((data) => {
+            if (data.length > 0) {
+                res.render("categories", { categories: data });
+            } else {
+                res.render("categories", { message: "No categories found" });
+            }
+        })
+        .catch((err) => res.render("categories", { message: "Error: " + err }));
     });
 
     app.post("/items/add", upload.single("featureImage"), (req, res) => {
@@ -166,7 +226,7 @@ storeService.initialize().then(() => {
     });
 
     app.get("/items/add", (req, res) => {
-        res.sendFile(path.join(__dirname, "views", "addItem.html"));
+        res.render("addItem");
     });
 
     app.get("/", (req, res) => {
@@ -174,9 +234,54 @@ storeService.initialize().then(() => {
     }); 
      
     app.get("/about", (req, res) => {
-        res.sendFile(path.join(__dirname, "views", "about.html"));
+        res.render("about");
     });  
 
+    app.get('/shop/:id', async (req, res) => {
+
+        let viewData = {};
+      
+        try{
+      
+            let items = [];
+      
+            if(req.query.category){
+                items = await itemData.getPublishedItemsByCategory(req.query.category);
+            }else{
+                items = await itemData.getPublishedItems();
+            }
+      
+            items.sort((a,b) => new Date(b.itemDate) - new Date(a.itemDate));
+      
+            viewData.items = items;
+      
+        }catch(err){
+            viewData.message = "no results";
+        }
+      
+        try{
+            viewData.item = await itemData.getItemById(req.params.id);
+        }catch(err){
+            viewData.message = "no results"; 
+        }
+      
+        try{
+            let categories = await itemData.getCategories();
+      
+            viewData.categories = categories;
+        }catch(err){
+            viewData.categoriesMessage = "no results"
+        }
+      
+        res.render("shop", {data: viewData})
+      });
+
+    app.use(function(req, res, next) {
+        let route = req.path.substring(1);
+        app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
+        app.locals.viewingCategory = req.query.category;
+        next();
+    });
     app.use((req, res) => {
         res.status(404).send("404! Page Not Found");
     });

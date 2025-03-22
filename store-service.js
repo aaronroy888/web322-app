@@ -61,6 +61,7 @@ function addItem(itemData) {
         if (itemData.published === undefined) {
             itemData.published = false;
         }
+        itemData.postDate = new Date().toISOString().split('T')[0];
 
         itemData.id = items.length + 1;
 
@@ -111,3 +112,13 @@ function getItemById(id) {
 }
 
 module.exports = { initialize, getAllItems, getPublishedItems, getCategories, addItem, getItemsByCategory, getItemsByMinDate, getItemById };
+module.exports.getPublishedItemsByCategory = function(category) {
+    return new Promise((resolve, reject) => {
+        let filteredItems = items.filter(item => item.published == true && item.category == category);
+        if (filteredItems.length > 0) {
+            resolve(filteredItems);
+        } else {
+            reject("no results returned");
+        }
+    });
+};
