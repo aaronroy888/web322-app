@@ -1,6 +1,10 @@
 <div class="row">
     <div class="col-md-12">
         <h2>Categories</h2>
+
+        <!-- Add Category Button -->
+        <a href="/categories/add" class="btn btn-success pull-right">Add Category</a>
+
         <hr />
         <div class="table-responsive">
             <table class="table">
@@ -8,6 +12,7 @@
                     <tr>
                         <th><p>Category ID</p></th>
                         <th><p>Category Name</p></th>
+                        <th></th> <!-- Empty header for remove column -->
                     </tr>
                 </thead>
                 <tbody>
@@ -15,6 +20,10 @@
                         <tr>
                             <td><a href="/items?category={{this.id}}">{{this.id}}</a></td>
                             <td><a href="/items?category={{this.id}}">{{this.category}}</a></td>
+                            <td>
+                                <!-- Remove button -->
+                                <a href="/categories/delete/{{this.id}}" class="btn btn-danger">Remove</a>
+                            </td>
                         </tr>
                     {{/each}}
                 </tbody>

@@ -1,6 +1,10 @@
 <div class="row">
     <div class="col-md-12">
           <h2>Items</h2>
+          
+          <!-- Add Post Button -->
+          <a href="/items/add" class="btn btn-success pull-right mb-3">Add Post</a>
+          
           <hr />
           <p>TODO: render a list of all post title values here</p>
           <div class="table-responsive">
@@ -24,6 +28,10 @@
                             <td>{{this.price}}</td>
                             <td><a href="/items?category={{this.category}}">{{this.category}}</a></td>
                             <td>{{#if this.published}}Yes{{else}}No{{/if}}</td>
+                             <td>
+                                <!-- Delete link -->
+                                <a href="/items/delete/{{this.id}}" class="btn btn-danger">Remove</a>
+                            </td>
                         </tr>
                     {{/each}}
                 </tbody>
@@ -36,4 +44,3 @@
         {{/unless}}
     </div>
 </div>
-

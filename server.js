@@ -1,17 +1,16 @@
 /*********************************************************************************
-*  WEB322 – Assignment 04
-*  I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part 
-*  of this assignment has been copied manually or electronically from any other source 
-*  (including 3rd party web sites) or distributed to other students.
+*  WEB322 – Assignment 05
+*  I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part of this
+*  assignment has been copied manually or electronically from any other source (including web sites) or 
+*  distributed to other students.
 * 
 Name: Aaron RoyAlappat 
 Student ID: 158515221 
-Date: 03-21-2025
-Cyclic Web App URL: https://b7f2c34e-6408-44f4-81d0-c3a354c931dd-00-1qv8wkmb6l05f.picard.replit.dev/ 
+Date: 04-09-2025
+Cyclic Web App URL:  
 GitHub Repository URL: https://github.com/aaronroy888/web322-app
-
+*
 ********************************************************************************/ 
-
 
 const express = require("express");
 const path = require("path");
@@ -112,19 +111,46 @@ storeService.initialize().then(() => {
     app.get("/items", (req, res) => {
         if (req.query.category) {
             storeService.getItemsByCategory(req.query.category)
-                .then((data) => res.json(data))
-                .catch((err) => res.status(404).send(err));
+                .then((data) => {
+                    if (data.length > 0) {
+                        res.render("Items", { Items: data });  // Render items if there is data
+                    } else {
+                        res.render("Items", { message: "No results" });  // Render "no results" message
+                    }
+                })
+                .catch((err) => {
+                    console.error(err);
+                    res.render("Items", { message: "Error fetching items by category" });
+                });
         } else if (req.query.minDate) {
             storeService.getItemsByMinDate(req.query.minDate)
-                .then((data) => res.json(data))
-                .catch((err) => res.status(404).send(err));
+                .then((data) => {
+                    if (data.length > 0) {
+                        res.render("Items", { Items: data });
+                    } else {
+                        res.render("Items", { message: "No results" });
+                    }
+                })
+                .catch((err) => {
+                    console.error(err);
+                    res.render("Items", { message: "Error fetching items by date" });
+                });
         } else {
             storeService.getAllItems()
-                .then((data) => res.json(data))
-                .catch((err) => res.status(404).send(err));
+                .then((data) => {
+                    if (data.length > 0) {
+                        res.render("Items", { Items: data });
+                    } else {
+                        res.render("Items", { message: "No results" });
+                    }
+                })
+                .catch((err) => {
+                    console.error(err);
+                    res.render("Items", { message: "Error fetching all items" });
+                });
         }
-
     });
+    
 
     app.get("/item/:value", (req, res) => {
         storeService.getItemById(req.params.value)
@@ -165,17 +191,58 @@ storeService.initialize().then(() => {
         res.render("shop", { data: viewData });
       });
 
-    app.get("/categories", (req, res) => {
+      app.get("/categories", (req, res) => {
         storeService.getCategories()
-        .then((data) => {
-            if (data.length > 0) {
-                res.render("categories", { categories: data });
-            } else {
-                res.render("categories", { message: "No categories found" });
-            }
-        })
-        .catch((err) => res.render("categories", { message: "Error: " + err }));
+            .then((data) => {
+                if (data.length > 0) {
+                    res.render("categories", { categories: data });  // Render categories if there is data
+                } else {
+                    res.render("categories", { message: "No results" });  // Render "no results" message
+                }
+            })
+            .catch((err) => {
+                console.error(err);
+                res.render("categories", { message: "Error fetching categories" });  // Render error message
+            });
     });
+
+    app.get("/categories/add", (req, res) => {
+        res.render("addCategory");  // Create an 'addCategory.hbs' file with a form for adding categories.
+    });
+
+    app.post("/categories/add", (req, res) => {
+        storeService.addCategory(req.body)  // Assuming `storeService.addCategory` is implemented correctly
+            .then(() => {
+                res.redirect("/categories");  // Redirect to the categories page after a successful addition
+            })
+            .catch((err) => {
+                console.error("Error adding category:", err);
+                res.status(500).send("Error adding category");
+            });
+    });
+
+    app.get("/categories/delete/:id", (req, res) => {
+        storeService.deleteCategoryById(req.params.id)  // Assuming `deleteCategoryById` is implemented in `storeService`
+            .then(() => {
+                res.redirect("/categories");  // Redirect to the categories page after deleting
+            })
+            .catch((err) => {
+                console.error("Error deleting category:", err);
+                res.status(500).send("Error deleting category");
+            });
+    });
+
+    app.get("/items/delete/:id", (req, res) => {
+        storeService.deletePostById(req.params.id)  // Assuming `deletePostById` is implemented in `storeService`
+            .then(() => {
+                res.redirect("/items");  // Redirect to the items page after deleting
+            })
+            .catch((err) => {
+                console.error("Error deleting post:", err);
+                res.status(500).send("Error deleting post");
+            });
+    });
+    
 
     app.post("/items/add", upload.single("featureImage"), (req, res) => {
         if (req.file) {
@@ -226,7 +293,16 @@ storeService.initialize().then(() => {
     });
 
     app.get("/items/add", (req, res) => {
-        res.render("addItem");
+        storeService.getCategories()
+            .then((categories) => {
+                // Render the addItem view and pass the categories data
+                res.render("addItem", { categories: categories });
+            })
+            .catch((err) => {
+                // Render the addItem view with an empty categories array if there's an error
+                console.error("Error fetching categories:", err);
+                res.render("addItem", { categories: [] });
+            });
     });
 
     app.get("/", (req, res) => {
