@@ -17,6 +17,7 @@ const path = require("path");
 const storeService = require("./store-service");
 
 const app = express();
+const PORT = process.env.PORT || 8080;
 const multer = require("multer");
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
@@ -37,48 +38,7 @@ const Handlebars = require("./helpers");
 
 const upload = multer();
 
-app.post("/items/add", upload.single("featureImage"), (req, res) => {
-    if(req.file){
-        let streamUpload = (req) => {
-            return new Promise((resolve, reject) => {
-                let stream = cloudinary.uploader.upload_stream(
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-    
-                streamifier.createReadStream(req.file.buffer).pipe(stream);
-            });
-        };
-    
 
-        async function upload(req) {
-            let result = await streamUpload(req);
-            console.log(result);
-            return result;
-        }
-    
-
-        upload(req).then((uploaded)=>{
-            processItem(uploaded.url);
-        });
-    }else{
-        processItem("");
-    }
-    
-
-    function processItem(imageUrl) {
-        req.body.featureImage = imageUrl;
-
-        console.log(req.body); 
-
-        res.redirect("/items");
-    }
-});
 
 app.engine('.hbs', exphbs.engine({
     extname: '.hbs',
@@ -100,272 +60,172 @@ app.engine('.hbs', exphbs.engine({
     }
 }));
 
-const PORT = process.env.PORT || 8080;
+app.set('views', path.join(__dirname, 'views'));
 
 app.use(express.static("public"));
+app.use(express.urlencoded({ extended: true }));
 
-storeService.initialize().then(() => {
-
-    console.log("Data initialized successfully. Version 4");
-
-    app.get("/items", (req, res) => {
-        if (req.query.category) {
-            storeService.getItemsByCategory(req.query.category)
-                .then((data) => {
-                    if (data.length > 0) {
-                        res.render("Items", { Items: data });  // Render items if there is data
-                    } else {
-                        res.render("Items", { message: "No results" });  // Render "no results" message
-                    }
-                })
-                .catch((err) => {
-                    console.error(err);
-                    res.render("Items", { message: "Error fetching items by category" });
-                });
-        } else if (req.query.minDate) {
-            storeService.getItemsByMinDate(req.query.minDate)
-                .then((data) => {
-                    if (data.length > 0) {
-                        res.render("Items", { Items: data });
-                    } else {
-                        res.render("Items", { message: "No results" });
-                    }
-                })
-                .catch((err) => {
-                    console.error(err);
-                    res.render("Items", { message: "Error fetching items by date" });
-                });
-        } else {
-            storeService.getAllItems()
-                .then((data) => {
-                    if (data.length > 0) {
-                        res.render("Items", { Items: data });
-                    } else {
-                        res.render("Items", { message: "No results" });
-                    }
-                })
-                .catch((err) => {
-                    console.error(err);
-                    res.render("Items", { message: "Error fetching all items" });
-                });
-        }
-    });
-    
-
-    app.get("/item/:value", (req, res) => {
-        storeService.getItemById(req.params.value)
-            .then((data) => res.json(data))
-            .catch((err) => res.status(404).send(err));
-    });
-
-    app.get("/shop", async (req, res) => {
-        let viewData = {};
-      
-        try {
-          let items = [];
-      
-          if (req.query.category) {
-            items = await itemData.getPublishedItemsByCategory(req.query.category);
-          } else {
-            items = await itemData.getPublishedItems();
-          }
-      
-          items.sort((a, b) => new Date(b.itemDate) - new Date(a.itemDate));
-      
-          let item = items[0];
-      
-          viewData.items = items;
-          viewData.item = item;
-        } catch (err) {
-          viewData.message = "no results";
-        }
-      
-        try {
-          let categories = await itemData.getCategories();
-      
-          viewData.categories = categories;
-        } catch (err) {
-          viewData.categoriesMessage = "no results";
-        }
-      
-        res.render("shop", { data: viewData });
-      });
-
-      app.get("/categories", (req, res) => {
-        storeService.getCategories()
-            .then((data) => {
-                if (data.length > 0) {
-                    res.render("categories", { categories: data });  // Render categories if there is data
-                } else {
-                    res.render("categories", { message: "No results" });  // Render "no results" message
-                }
-            })
-            .catch((err) => {
-                console.error(err);
-                res.render("categories", { message: "Error fetching categories" });  // Render error message
-            });
-    });
-
-    app.get("/categories/add", (req, res) => {
-        res.render("addCategory");  // Create an 'addCategory.hbs' file with a form for adding categories.
-    });
-
-    app.post("/categories/add", (req, res) => {
-        storeService.addCategory(req.body)  // Assuming `storeService.addCategory` is implemented correctly
-            .then(() => {
-                res.redirect("/categories");  // Redirect to the categories page after a successful addition
-            })
-            .catch((err) => {
-                console.error("Error adding category:", err);
-                res.status(500).send("Error adding category");
-            });
-    });
-
-    app.get("/categories/delete/:id", (req, res) => {
-        storeService.deleteCategoryById(req.params.id)  // Assuming `deleteCategoryById` is implemented in `storeService`
-            .then(() => {
-                res.redirect("/categories");  // Redirect to the categories page after deleting
-            })
-            .catch((err) => {
-                console.error("Error deleting category:", err);
-                res.status(500).send("Error deleting category");
-            });
-    });
-
-    app.get("/items/delete/:id", (req, res) => {
-        storeService.deletePostById(req.params.id)  // Assuming `deletePostById` is implemented in `storeService`
-            .then(() => {
-                res.redirect("/items");  // Redirect to the items page after deleting
-            })
-            .catch((err) => {
-                console.error("Error deleting post:", err);
-                res.status(500).send("Error deleting post");
-            });
-    });
-    
-
-    app.post("/items/add", upload.single("featureImage"), (req, res) => {
-        if (req.file) {
-            let streamUpload = (req) => {
-                return new Promise((resolve, reject) => {
-                    let stream = cloudinary.uploader.upload_stream(
-                        (error, result) => {
-                            if (result) {
-                                resolve(result);
-                            } else {
-                                reject(error);
-                            }
-                        }
-                    );
-                    streamifier.createReadStream(req.file.buffer).pipe(stream);
-                });
-            };
-    
-            async function upload(req) {
-                let result = await streamUpload(req);
-                console.log(result); 
-                return result;
-            }
-    
-            upload(req).then((uploaded) => {
-                req.body.featureImage = uploaded.url; // Set the feature image URL
-                storeService.addItem(req.body).then((newItem) => {
-                    console.log("New item added:", newItem); // Log the newly added item for debugging
-                    res.redirect("/items");
-                }).catch((err) => {
-                    console.error("Error adding item:", err);
-                    res.status(500).send("Error adding item");
-                });
-            }).catch((error) => {
-                console.error("Upload Error:", error);
-                res.status(500).send("Error uploading image");
-            });
-        } else {
-            req.body.featureImage = "";
-            storeService.addItem(req.body).then((newItem) => {
-                console.log("New item added:", newItem); // Log the newly added item for debugging
-                res.redirect("/items");
-            }).catch((err) => {
-                console.error("Error adding item:", err);
-                res.status(500).send("Error adding item");
-            });
-        }
-    });
-
-    app.get("/items/add", (req, res) => {
-        storeService.getCategories()
-            .then((categories) => {
-                // Render the addItem view and pass the categories data
-                res.render("addItem", { categories: categories });
-            })
-            .catch((err) => {
-                // Render the addItem view with an empty categories array if there's an error
-                console.error("Error fetching categories:", err);
-                res.render("addItem", { categories: [] });
-            });
-    });
-
-    app.get("/", (req, res) => {
-        res.redirect("/about")
-    }); 
-     
-    app.get("/about", (req, res) => {
-        res.render("about");
-    });  
-
-    app.get('/shop/:id', async (req, res) => {
-
-        let viewData = {};
-      
-        try{
-      
-            let items = [];
-      
-            if(req.query.category){
-                items = await itemData.getPublishedItemsByCategory(req.query.category);
-            }else{
-                items = await itemData.getPublishedItems();
-            }
-      
-            items.sort((a,b) => new Date(b.itemDate) - new Date(a.itemDate));
-      
-            viewData.items = items;
-      
-        }catch(err){
-            viewData.message = "no results";
-        }
-      
-        try{
-            viewData.item = await itemData.getItemById(req.params.id);
-        }catch(err){
-            viewData.message = "no results"; 
-        }
-      
-        try{
-            let categories = await itemData.getCategories();
-      
-            viewData.categories = categories;
-        }catch(err){
-            viewData.categoriesMessage = "no results"
-        }
-      
-        res.render("shop", {data: viewData})
-      });
-
-    app.use(function(req, res, next) {
-        let route = req.path.substring(1);
-        app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
-        app.locals.viewingCategory = req.query.category;
-        next();
-    });
-    app.use((req, res) => {
-        res.status(404).send("404! Page Not Found");
-    });
-
-    app.listen(PORT, () => {
-        console.log(`Express HTTP server listening on port ${PORT}`);
-    });
-
-}).catch(err => {
-    console.log("Failed to initialize store service:", err);
+app.use((req, res, next) => {
+    let route = req.path.substring(1);
+    app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
+    app.locals.viewingCategory = req.query.category;
+    next();
 });
+
+app.get("/", (req, res) => {
+    res.redirect("/shop");
+});
+
+app.get("/about", (req, res) => {
+    res.render("about");
+});
+
+app.get("/items/add", (req, res) => {
+    storeService.getCategories()
+        .then(categories => res.render("addItem", { categories }))
+        .catch(() => res.render("addItem", { categories: [] }));
+});
+
+app.post("/items/add", upload.single("featureImage"), (req, res) => {
+    if (req.file) {
+        let streamUpload = (req) => {
+            return new Promise((resolve, reject) => {
+                let stream = cloudinary.uploader.upload_stream(
+                    (error, result) => {
+                        if (result) {
+                            resolve(result);
+                        } else {
+                            reject(error);
+                        }
+                    }
+                );
+                streamifier.createReadStream(req.file.buffer).pipe(stream);
+            });
+        };
+
+        async function upload(req) {
+            let result = await streamUpload(req);
+            return result;
+        }
+
+        upload(req).then((uploaded) => {
+            processItem(uploaded.url);
+        });
+    } else {
+        processItem("");
+    }
+
+    function processItem(imageUrl) {
+        req.body.featureImage = imageUrl;
+        storeService.addItem(req.body).then(() => {
+            res.redirect("/items");
+        }).catch(() => {
+            res.status(500).send("Unable to add item");
+        });
+    }
+});
+
+app.get("/items", (req, res) => {
+    if (req.query.category) {
+        storeService.getItemsByCategory(req.query.category)
+            .then(items => res.render("items", { items }))
+            .catch(() => res.render("items", { message: "No results found for this category." }));
+    } else if (req.query.minDate) {
+        storeService.getItemsByMinDate(req.query.minDate)
+            .then(items => res.render("items", { items }))
+            .catch(() => res.render("items", { message: "No results found for this date." }));
+    } else {
+        storeService.getAllItems()
+            .then(items => res.render("items", { items }))
+            .catch(() => res.render("items", { message: "No items found." }));
+    }
+});
+
+app.get("/items/delete/:id", (req, res) => {
+    storeService.deletePostById(req.params.id)
+        .then(() => res.redirect("/items"))
+        .catch(() => res.status(500).send("Unable to Remove Post / Post not found"));
+});
+
+app.get("/categories", (req, res) => {
+    storeService.getCategories()
+        .then(categories => res.render("categories", { categories }))
+        .catch(() => res.render("categories", { message: "no results" }));
+});
+
+app.get("/categories/add", (req, res) => {
+    res.render("addCategory");
+});
+
+app.post("/categories/add", (req, res) => {
+    storeService.addCategory(req.body)
+        .then(() => res.redirect("/categories"))
+        .catch(() => res.status(500).send("Unable to add category"));
+});
+
+app.get("/categories/delete/:id", (req, res) => {
+    storeService.deleteCategoryById(req.params.id)
+        .then(() => res.redirect("/categories"))
+        .catch(() => res.status(500).send("Unable to Remove Category / Category not found"));
+});
+
+app.get("/shop", async (req, res) => {
+    let viewData = {};
+
+    try {
+        let items = req.query.category
+            ? await storeService.getPublishedItemsByCategory(req.query.category)
+            : await storeService.getPublishedItems();
+
+        items.sort((a, b) => new Date(b.postDate) - new Date(a.postDate));
+        viewData.items = items;
+        viewData.item = items[0];
+    } catch (err) {
+        viewData.message = "no results";
+    }
+
+    try {
+        viewData.categories = await storeService.getCategories();
+    } catch (err) {
+        viewData.categoriesMessage = "no results";
+    }
+
+    res.render("shop", { data: viewData });
+});
+
+app.get('/shop/:id', async (req, res) => {
+    let viewData = {};
+
+    try {
+        let items = req.query.category
+            ? await storeService.getPublishedItemsByCategory(req.query.category)
+            : await storeService.getPublishedItems();
+
+        items.sort((a, b) => new Date(b.postDate) - new Date(a.postDate));
+        viewData.items = items;
+    } catch (err) {
+        viewData.message = "no results";
+    }
+
+    try {
+        viewData.item = await storeService.getItemById(req.params.id);
+    } catch (err) {
+        viewData.message = "no results";
+    }
+
+    try {
+        viewData.categories = await storeService.getCategories();
+    } catch (err) {
+        viewData.categoriesMessage = "no results"
+    }
+
+    res.render("shop", { data: viewData });
+});
+
+app.use((req, res) => {
+    res.status(404).render("404");
+});
+
+storeService.initialize()
+    .then(() => app.listen(PORT, () => console.log(`Data initialized successfully. Version 5. Server started on http://localhost:${PORT}`)))
+    .catch(err => console.log(`Failed to initialize store service: ${err}`));

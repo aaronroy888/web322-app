@@ -28,3 +28,9 @@ a {
     color: yellow;
 }
 
+.table-darkmode,
+.table-darkmode th,
+.table-darkmode td {
+  color: white !important;
+}
+
