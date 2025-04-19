@@ -1,5 +1,5 @@
 /*********************************************************************************
-*  WEB322 – Assignment 05
+*  WEB322 – Assignment 06
 *  I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part of this
 *  assignment has been copied manually or electronically from any other source (including web sites) or 
 *  distributed to other students.
@@ -15,11 +15,34 @@ GitHub Repository URL: https://github.com/aaronroy888/web322-app
 const express = require("express");
 const path = require("path");
 const storeService = require("./store-service");
+const authData = require('./auth-service');
+const clientSessions = require("client-sessions");
 
 const app = express();
 const multer = require("multer");
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
+
+app.use(clientSessions({
+    cookieName: "session", 
+    secret: 'o6LjQ5EVNC28ZgK64hDELM18ScpFQrHJH58DBQKAjaajsdajkJK', // rage keyboarding
+    duration: 30 * 60 * 1000,
+    activeDuration: 1000 * 60 
+}));
+
+app.use(function(req, res, next) {
+    res.locals.session = req.session;
+    next();
+});
+
+function ensureLogin(req, res, next) {
+    if (!req.session.user) {
+        res.redirect("/login");
+    } else {
+        next();
+    }
+}
+
 
 cloudinary.config({
     cloud_name: "dalvtgrh4",
@@ -36,49 +59,6 @@ app.set('view engine', '.hbs');
 const Handlebars = require("./helpers");
 
 const upload = multer();
-
-app.post("/items/add", upload.single("featureImage"), (req, res) => {
-    if(req.file){
-        let streamUpload = (req) => {
-            return new Promise((resolve, reject) => {
-                let stream = cloudinary.uploader.upload_stream(
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-    
-                streamifier.createReadStream(req.file.buffer).pipe(stream);
-            });
-        };
-    
-
-        async function upload(req) {
-            let result = await streamUpload(req);
-            console.log(result);
-            return result;
-        }
-    
-
-        upload(req).then((uploaded)=>{
-            processItem(uploaded.url);
-        });
-    }else{
-        processItem("");
-    }
-    
-
-    function processItem(imageUrl) {
-        req.body.featureImage = imageUrl;
-
-        console.log(req.body); 
-
-        res.redirect("/items");
-    }
-});
 
 app.engine('.hbs', exphbs.engine({
     extname: '.hbs',
@@ -104,18 +84,59 @@ const PORT = process.env.PORT || 8080;
 
 app.use(express.static("public"));
 
-storeService.initialize().then(() => {
+storeService.initialize()
+.then(authData.initialize)
+.then(() => {
 
-    console.log("Data initialized successfully. Version 4");
+    console.log("Data initialized successfully. Version 6");
 
-    app.get("/items", (req, res) => {
+    app.get("/login", (req, res) => {
+        res.render("login");
+    });
+    
+    app.get("/register", (req, res) => {
+        res.render("register");
+    });
+    
+    app.post("/register", (req, res) => {
+        authData.registerUser(req.body).then(() => {
+            res.render("register", { successMessage: "User created" });
+        }).catch((err) => {
+            res.render("register", { errorMessage: err, userName: req.body.userName });
+        });
+    });
+    
+    app.post("/login", (req, res) => {
+        req.body.userAgent = req.get('User-Agent');
+        authData.checkUser(req.body).then((user) => {
+            req.session.user = {
+                userName: user.userName,
+                email: user.email,
+                loginHistory: user.loginHistory
+            };
+            res.redirect("/items");
+        }).catch((err) => {
+            res.render("login", { errorMessage: err, userName: req.body.userName });
+        });
+    });
+    
+    app.get("/logout", (req, res) => {
+        req.session.reset();
+        res.redirect("/");
+    });
+    
+    app.get("/userHistory", ensureLogin, (req, res) => {
+        res.render("userHistory");
+    });    
+
+    app.get("/items", ensureLogin, (req, res) => {
         if (req.query.category) {
             storeService.getItemsByCategory(req.query.category)
                 .then((data) => {
                     if (data.length > 0) {
-                        res.render("Items", { Items: data });  // Render items if there is data
+                        res.render("Items", { Items: data });
                     } else {
-                        res.render("Items", { message: "No results" });  // Render "no results" message
+                        res.render("Items", { message: "No results" });
                     }
                 })
                 .catch((err) => {
@@ -152,7 +173,7 @@ storeService.initialize().then(() => {
     });
     
 
-    app.get("/item/:value", (req, res) => {
+    app.get("/item/:value", ensureLogin, (req, res) => {
         storeService.getItemById(req.params.value)
             .then((data) => res.json(data))
             .catch((err) => res.status(404).send(err));
@@ -191,29 +212,29 @@ storeService.initialize().then(() => {
         res.render("shop", { data: viewData });
       });
 
-      app.get("/categories", (req, res) => {
+      app.get("/categories", ensureLogin, (req, res) => {
         storeService.getCategories()
             .then((data) => {
                 if (data.length > 0) {
-                    res.render("categories", { categories: data });  // Render categories if there is data
+                    res.render("categories", { categories: data }); 
                 } else {
-                    res.render("categories", { message: "No results" });  // Render "no results" message
+                    res.render("categories", { message: "No results" }); 
                 }
             })
             .catch((err) => {
                 console.error(err);
-                res.render("categories", { message: "Error fetching categories" });  // Render error message
+                res.render("categories", { message: "Error fetching categories" });  
             });
     });
 
-    app.get("/categories/add", (req, res) => {
-        res.render("addCategory");  // Create an 'addCategory.hbs' file with a form for adding categories.
+    app.get("/categories/add", ensureLogin, (req, res) => {
+        res.render("addCategory"); 
     });
 
-    app.post("/categories/add", (req, res) => {
-        storeService.addCategory(req.body)  // Assuming `storeService.addCategory` is implemented correctly
+    app.post("/categories/add", ensureLogin, (req, res) => {
+        storeService.addCategory(req.body) 
             .then(() => {
-                res.redirect("/categories");  // Redirect to the categories page after a successful addition
+                res.redirect("/categories");
             })
             .catch((err) => {
                 console.error("Error adding category:", err);
@@ -221,10 +242,10 @@ storeService.initialize().then(() => {
             });
     });
 
-    app.get("/categories/delete/:id", (req, res) => {
-        storeService.deleteCategoryById(req.params.id)  // Assuming `deleteCategoryById` is implemented in `storeService`
+    app.get("/categories/delete/:id", ensureLogin, (req, res) => {
+        storeService.deleteCategoryById(req.params.id) 
             .then(() => {
-                res.redirect("/categories");  // Redirect to the categories page after deleting
+                res.redirect("/categories"); 
             })
             .catch((err) => {
                 console.error("Error deleting category:", err);
@@ -232,10 +253,10 @@ storeService.initialize().then(() => {
             });
     });
 
-    app.get("/items/delete/:id", (req, res) => {
-        storeService.deletePostById(req.params.id)  // Assuming `deletePostById` is implemented in `storeService`
+    app.get("/items/delete/:id", ensureLogin, (req, res) => {
+        storeService.deletePostById(req.params.id) 
             .then(() => {
-                res.redirect("/items");  // Redirect to the items page after deleting
+                res.redirect("/items"); 
             })
             .catch((err) => {
                 console.error("Error deleting post:", err);
@@ -244,7 +265,7 @@ storeService.initialize().then(() => {
     });
     
 
-    app.post("/items/add", upload.single("featureImage"), (req, res) => {
+    app.post("/items/add", ensureLogin, upload.single("featureImage"), (req, res) => {
         if (req.file) {
             let streamUpload = (req) => {
                 return new Promise((resolve, reject) => {
@@ -268,9 +289,9 @@ storeService.initialize().then(() => {
             }
     
             upload(req).then((uploaded) => {
-                req.body.featureImage = uploaded.url; // Set the feature image URL
+                req.body.featureImage = uploaded.url;
                 storeService.addItem(req.body).then((newItem) => {
-                    console.log("New item added:", newItem); // Log the newly added item for debugging
+                    console.log("New item added:", newItem); 
                     res.redirect("/items");
                 }).catch((err) => {
                     console.error("Error adding item:", err);
@@ -283,7 +304,7 @@ storeService.initialize().then(() => {
         } else {
             req.body.featureImage = "";
             storeService.addItem(req.body).then((newItem) => {
-                console.log("New item added:", newItem); // Log the newly added item for debugging
+                console.log("New item added:", newItem);
                 res.redirect("/items");
             }).catch((err) => {
                 console.error("Error adding item:", err);
@@ -292,14 +313,12 @@ storeService.initialize().then(() => {
         }
     });
 
-    app.get("/items/add", (req, res) => {
+    app.get("/items/add", ensureLogin, (req, res) => {
         storeService.getCategories()
             .then((categories) => {
-                // Render the addItem view and pass the categories data
                 res.render("addItem", { categories: categories });
             })
             .catch((err) => {
-                // Render the addItem view with an empty categories array if there's an error
                 console.error("Error fetching categories:", err);
                 res.render("addItem", { categories: [] });
             });
@@ -363,9 +382,9 @@ storeService.initialize().then(() => {
     });
 
     app.listen(PORT, () => {
-        console.log(`Express HTTP server listening on port ${PORT}`);
+        console.log(`Express HTTP server listening on port`, PORT);
     });
 
 }).catch(err => {
-    console.log("Failed to initialize store service:", err);
+    console.log("unable to start server: " , err);
 });
